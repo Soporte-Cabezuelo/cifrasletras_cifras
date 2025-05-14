@@ -1,0 +1,205 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Generador de Números</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            color: #333;
+            margin-top: 20px;
+        }
+        #container {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        #numbers, #target, #solution, #result {
+            margin: 15px 0;
+            font-size: 24px;
+            color: #555;
+        }
+        #solution {
+            font-weight: bold;
+            color: #28a745;
+        }
+        #result {
+            font-size: 20px;
+            color: #dc3545;
+        }
+        button {
+            font-size: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Generador de Números</h1>
+    <div id="container">
+        <button id="start">INICIAR</button>
+        <div id="numbers"></div>
+        <div id="target"></div>
+        <button id="showResult" style="display: none;">MOSTRAR RESULTADO</button>
+        <div id="solution"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const possibleNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 25, 50, 100];
+
+        function generateNumbers() {
+            return Array.from({ length: 6 }, () => 
+                possibleNumbers[Math.floor(Math.random() * possibleNumbers.length)]);
+        }
+
+        function generateTarget() {
+            return Math.floor(Math.random() * 901) + 100; // 100 a 1000
+        }
+
+        function findBestSolution(numbers, target) {
+            let bestDiff = Infinity;
+            let bestValue = null;
+            let bestExpression = null;
+            let bestNumCount = Infinity;
+
+            function recurse(currentNumbers) {
+                if (currentNumbers.length === 1) {
+                    const [value, expression, numCount] = currentNumbers[0];
+                    const diff = Math.abs(value - target);
+                    if (diff < bestDiff || (diff === bestDiff && numCount < bestNumCount)) {
+                        bestDiff = diff;
+                        bestValue = value;
+                        bestExpression = expression;
+                        bestNumCount = numCount;
+                    }
+                    return;
+                }
+
+                for (let i = 0; i < currentNumbers.length; i++) {
+                    for (let j = i + 1; j < currentNumbers.length; j++) {
+                        const [a, exprA, countA] = currentNumbers[i];
+                        const [b, exprB, countB] = currentNumbers[j];
+                        const operations = [
+                            { op: '+', func: (x, y) => x + y, expr: (x, y) => `(${x} + ${y})` },
+                            { op: '-', func: (x, y) => x - y, expr: (x, y) => `(${x} - ${y})`, condition: (x, y) => x > y },
+                            { op: '*', func: (x, y) => x * y, expr: (x, y) => `(${x} * ${y})` },
+                            { op: '/', func: (x, y) => x / y, expr: (x, y) => `(${x} / ${y})`, condition: (x, y) => y !== 0 && x % y === 0 }
+                        ];
+
+                        for (const { op, func, expr, condition } of operations) {
+                            if (condition && !condition(a, b)) continue;
+                            const result = func(a, b);
+                            const newExpr = expr(exprA, exprB);
+                            const newCount = countA + countB;
+                            const newNumbers = currentNumbers.filter((_, idx) => idx !== i && idx !== j);
+                            newNumbers.push([result, newExpr, newCount]);
+                            recurse(newNumbers);
+                        }
+                    }
+                }
+            }
+
+            // Probar todos los subconjuntos no vacíos
+            for (let i = 1; i < (1 << numbers.length); i++) {
+                const subset = [];
+                for (let j = 0; j < numbers.length; j++) {
+                    if (i & (1 << j)) subset.push(numbers[j]);
+                }
+                const initialNumbers = subset.map(n => [n, n.toString(), 1]);
+                recurse(initialNumbers);
+            }
+
+            return { bestValue, bestExpression, bestDiff, bestNumCount };
+        }
+
+        document.getElementById('start').addEventListener('click', () => {
+            const numbers = generateNumbers();
+            const target = generateTarget();
+
+            document.getElementById('numbers').textContent = `Números: ${numbers.join(', ')}`;
+            document.getElementById('target').textContent = `Objetivo: ${target}`;
+            document.getElementById('solution').textContent = '';
+            document.getElementById('result').textContent = '';
+
+            // Calcular la mejor solución inmediatamente
+            const { bestValue, bestExpression, bestDiff, bestNumCount } = findBestSolution(numbers, target);
+
+            // Mostrar el botón "MOSTRAR RESULTADO"
+            const showResultButton = document.getElementById('showResult');
+            showResultButton.style.display = 'inline-block';
+
+            // Configurar el evento para mostrar el resultado al pulsar el botón
+            showResultButton.onclick = () => {
+                document.getElementById('solution').textContent = 
+                    `Solución: ${bestExpression} = ${bestValue}`;	//  (usando ${bestNumCount} números)
+                if (bestDiff === 0) {
+                    document.getElementById('result').textContent = '¡Se ha alcanzado la cifra exacta!';
+                    document.getElementById('result').style.color = '#28a745';
+                } else {
+                    document.getElementById('result').textContent = 
+                        `Se ha quedado a ${bestDiff} del objetivo.`;
+                }
+                showResultButton.style.display = 'none'; // Ocultar el botón tras mostrar el resultado
+            };
+        });
+    </script>
+</body>
+</html>
