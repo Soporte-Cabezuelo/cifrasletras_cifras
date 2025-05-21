@@ -1,43 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -62,7 +23,25 @@
             max-width: 600px;
             margin: 20px auto;
         }
-        #numbers, #target, #solution, #result {
+        .number-input {
+            width: 60px;
+            height: 40px;
+            font-size: 20px;
+            text-align: center;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #target-input {
+            width: 100px;
+            height: 40px;
+            font-size: 24px;
+            text-align: center;
+            margin: 15px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #solution, #result {
             margin: 15px 0;
             font-size: 24px;
             color: #555;
@@ -94,10 +73,13 @@
 <body>
     <h1>Generador de Números</h1>
     <div id="container">
-        <button id="start">INICIAR</button>
-        <div id="numbers"></div>
-        <div id="target"></div>
-        <button id="showResult" style="display: none;">MOSTRAR RESULTADO</button>
+        <button id="generate">GENERAR</button>
+        <div id="numbers-container">
+            </div>
+        <div>
+            Objetivo: <input type="number" id="target-input" value="0">
+        </div>
+        <button id="showResult">MOSTRAR RESULTADO</button>
         <div id="solution"></div>
         <div id="result"></div>
     </div>
@@ -105,13 +87,40 @@
     <script>
         const possibleNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 25, 50, 100];
 
-        function generateNumbers() {
-            return Array.from({ length: 6 }, () => 
+        function generateRandomNumbers() {
+            return Array.from({ length: 6 }, () =>
                 possibleNumbers[Math.floor(Math.random() * possibleNumbers.length)]);
         }
 
-        function generateTarget() {
+        function generateRandomTarget() {
             return Math.floor(Math.random() * 901) + 100; // 100 a 1000
+        }
+
+        function displayNumbersInInputs(numbers) {
+            const numbersContainer = document.getElementById('numbers-container');
+            numbersContainer.innerHTML = ''; // Clear previous inputs
+            numbers.forEach((num, index) => {
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.className = 'number-input';
+                input.value = num;
+                input.id = `number-${index}`;
+                numbersContainer.appendChild(input);
+            });
+        }
+
+        function getNumbersFromInputs() {
+            const numbers = [];
+            for (let i = 0; i < 6; i++) {
+                const input = document.getElementById(`number-${i}`);
+                if (input && !isNaN(parseInt(input.value))) {
+                    numbers.push(parseInt(input.value));
+                } else {
+                    // Handle case where input might be empty or invalid
+                    return null;
+                }
+            }
+            return numbers;
         }
 
         function findBestSolution(numbers, target) {
@@ -170,35 +179,44 @@
             return { bestValue, bestExpression, bestDiff, bestNumCount };
         }
 
-        document.getElementById('start').addEventListener('click', () => {
-            const numbers = generateNumbers();
-            const target = generateTarget();
+        // Initialize the number inputs and target on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const initialNumbers = generateRandomNumbers();
+            displayNumbersInInputs(initialNumbers);
+            document.getElementById('target-input').value = generateRandomTarget();
+        });
 
-            document.getElementById('numbers').textContent = `Números: ${numbers.join(', ')}`;
-            document.getElementById('target').textContent = `Objetivo: ${target}`;
+        document.getElementById('generate').addEventListener('click', () => {
+            const numbers = generateRandomNumbers();
+            displayNumbersInInputs(numbers);
+            document.getElementById('target-input').value = generateRandomTarget();
+
             document.getElementById('solution').textContent = '';
             document.getElementById('result').textContent = '';
+        });
 
-            // Calcular la mejor solución inmediatamente
+        document.getElementById('showResult').addEventListener('click', () => {
+            const numbers = getNumbersFromInputs();
+            const target = parseInt(document.getElementById('target-input').value);
+
+            if (numbers === null || isNaN(target)) {
+                document.getElementById('result').textContent = 'Por favor, ingrese números y un objetivo válidos.';
+                document.getElementById('result').style.color = '#dc3545';
+                document.getElementById('solution').textContent = '';
+                return;
+            }
+
             const { bestValue, bestExpression, bestDiff, bestNumCount } = findBestSolution(numbers, target);
 
-            // Mostrar el botón "MOSTRAR RESULTADO"
-            const showResultButton = document.getElementById('showResult');
-            showResultButton.style.display = 'inline-block';
-
-            // Configurar el evento para mostrar el resultado al pulsar el botón
-            showResultButton.onclick = () => {
-                document.getElementById('solution').textContent = 
-                    `Solución: ${bestExpression} = ${bestValue}`;	//  (usando ${bestNumCount} números)
-                if (bestDiff === 0) {
-                    document.getElementById('result').textContent = '¡Se ha alcanzado la cifra exacta!';
-                    document.getElementById('result').style.color = '#28a745';
-                } else {
-                    document.getElementById('result').textContent = 
-                        `Se ha quedado a ${bestDiff} del objetivo.`;
-                }
-                showResultButton.style.display = 'none'; // Ocultar el botón tras mostrar el resultado
-            };
+            document.getElementById('solution').textContent =
+                `Solución: ${bestExpression} = ${bestValue}`;
+            if (bestDiff === 0) {
+                document.getElementById('result').textContent = '¡Se ha alcanzado la cifra exacta!';
+                document.getElementById('result').style.color = '#28a745';
+            } else {
+                document.getElementById('result').textContent =
+                    `Se ha quedado a ${bestDiff} del objetivo.`;
+            }
         });
     </script>
 </body>
