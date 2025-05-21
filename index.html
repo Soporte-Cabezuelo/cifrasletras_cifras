@@ -68,13 +68,19 @@
         button:hover {
             background-color: #0056b3;
         }
+        #clear {
+            background-color: #dc3545; /* Red background for the Clear button */
+        }
+        #clear:hover {
+            background-color: #c82333;
+        }
     </style>
 </head>
 <body>
     <h1>Generador de Números</h1>
     <div id="container">
         <button id="generate">GENERAR</button>
-        <div id="numbers-container">
+        <button id="clear">LIMPIAR</button> <div id="numbers-container">
             </div>
         <div>
             Objetivo: <input type="number" id="target-input" value="0">
@@ -191,6 +197,18 @@
             displayNumbersInInputs(numbers);
             document.getElementById('target-input').value = generateRandomTarget();
 
+            document.getElementById('solution').textContent = '';
+            document.getElementById('result').textContent = '';
+        });
+
+        document.getElementById('clear').addEventListener('click', () => {
+            for (let i = 0; i < 6; i++) {
+                const input = document.getElementById(`number-${i}`);
+                if (input) {
+                    input.value = '';
+                }
+            }
+            document.getElementById('target-input').value = '';
             document.getElementById('solution').textContent = '';
             document.getElementById('result').textContent = '';
         });
