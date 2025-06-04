@@ -20,7 +20,7 @@
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             padding: 20px;
-            max-width: 600px;
+            max-width: 700px;
             margin: 20px auto;
         }
         .number-input {
@@ -41,18 +41,45 @@
             border: 1px solid #ccc;
             border-radius: 5px;
         }
-        #solution, #result {
-            margin: 15px 0;
-            font-size: 24px;
-            color: #555;
+        #solutions {
+            margin: 20px 0;
+            text-align: left;
         }
-        #solution {
+        .solution-item {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 18px;
+        }
+        .solution-item.exact {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .solution-rank {
             font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        .solution-expression {
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        .solution-result {
             color: #28a745;
+            font-weight: bold;
+        }
+        .solution-diff {
+            color: #dc3545;
+            font-size: 14px;
         }
         #result {
+            margin: 15px 0;
             font-size: 20px;
-            color: #dc3545;
+            color: #555;
         }
         button {
             font-size: 20px;
@@ -69,7 +96,7 @@
             background-color: #0056b3;
         }
         #clear {
-            background-color: #dc3545; /* Red background for the Clear button */
+            background-color: #dc3545;
         }
         #clear:hover {
             background-color: #c82333;
@@ -80,13 +107,13 @@
     <h1>Generador de Números</h1>
     <div id="container">
         <button id="generate">GENERAR</button>
-        <button id="clear">LIMPIAR</button> <div id="numbers-container">
-            </div>
+        <button id="clear">LIMPIAR</button> 
+        <div id="numbers-container"></div>
         <div>
             Objetivo: <input type="number" id="target-input" value="0">
         </div>
-        <button id="showResult">MOSTRAR RESULTADO</button>
-        <div id="solution"></div>
+        <button id="showResult">MOSTRAR RESULTADOS</button>
+        <div id="solutions"></div>
         <div id="result"></div>
     </div>
 
@@ -104,7 +131,7 @@
 
         function displayNumbersInInputs(numbers) {
             const numbersContainer = document.getElementById('numbers-container');
-            numbersContainer.innerHTML = ''; // Clear previous inputs
+            numbersContainer.innerHTML = '';
             numbers.forEach((num, index) => {
                 const input = document.createElement('input');
                 input.type = 'number';
@@ -122,29 +149,25 @@
                 if (input && !isNaN(parseInt(input.value))) {
                     numbers.push(parseInt(input.value));
                 } else {
-                    // Handle case where input might be empty or invalid
                     return null;
                 }
             }
             return numbers;
         }
 
-        function findBestSolution(numbers, target) {
-            let bestDiff = Infinity;
-            let bestValue = null;
-            let bestExpression = null;
-            let bestNumCount = Infinity;
+        function findTop5Solutions(numbers, target) {
+            const solutions = [];
 
             function recurse(currentNumbers) {
                 if (currentNumbers.length === 1) {
                     const [value, expression, numCount] = currentNumbers[0];
                     const diff = Math.abs(value - target);
-                    if (diff < bestDiff || (diff === bestDiff && numCount < bestNumCount)) {
-                        bestDiff = diff;
-                        bestValue = value;
-                        bestExpression = expression;
-                        bestNumCount = numCount;
-                    }
+                    solutions.push({
+                        value,
+                        expression,
+                        diff,
+                        numCount
+                    });
                     return;
                 }
 
@@ -182,7 +205,67 @@
                 recurse(initialNumbers);
             }
 
-            return { bestValue, bestExpression, bestDiff, bestNumCount };
+            // Ordenar por diferencia (ascendente) y luego por número de operaciones (ascendente)
+            solutions.sort((a, b) => {
+                if (a.diff !== b.diff) return a.diff - b.diff;
+                return a.numCount - b.numCount;
+            });
+
+            // Eliminar duplicados basados en valor y expresión
+            const uniqueSolutions = [];
+            const seen = new Set();
+            
+            for (const solution of solutions) {
+                const key = `${solution.value}-${solution.expression}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueSolutions.push(solution);
+                }
+            }
+
+            return uniqueSolutions.slice(0, 5);
+        }
+
+        function displayTop5Solutions(solutions, target) {
+            const solutionsDiv = document.getElementById('solutions');
+            solutionsDiv.innerHTML = '';
+
+            if (solutions.length === 0) {
+                solutionsDiv.innerHTML = '<p>No se encontraron soluciones.</p>';
+                return;
+            }
+
+            solutions.forEach((solution, index) => {
+                const solutionDiv = document.createElement('div');
+                solutionDiv.className = 'solution-item';
+                
+                if (solution.diff === 0) {
+                    solutionDiv.classList.add('exact');
+                }
+
+                const rank = document.createElement('div');
+                rank.className = 'solution-rank';
+                rank.textContent = `${index + 1}º Mejor resultado:`;
+
+                const expression = document.createElement('div');
+                expression.className = 'solution-expression';
+                expression.textContent = `${solution.expression} = ${solution.value}`;
+
+                const result = document.createElement('div');
+                result.className = 'solution-result';
+                
+                if (solution.diff === 0) {
+                    result.textContent = '¡Cifra exacta alcanzada!';
+                    result.style.color = '#28a745';
+                } else {
+                    result.innerHTML = `Resultado: <span class="solution-diff">Se queda a ${solution.diff} del objetivo</span>`;
+                }
+
+                solutionDiv.appendChild(rank);
+                solutionDiv.appendChild(expression);
+                solutionDiv.appendChild(result);
+                solutionsDiv.appendChild(solutionDiv);
+            });
         }
 
         // Initialize the number inputs and target on page load
@@ -197,7 +280,7 @@
             displayNumbersInInputs(numbers);
             document.getElementById('target-input').value = generateRandomTarget();
 
-            document.getElementById('solution').textContent = '';
+            document.getElementById('solutions').innerHTML = '';
             document.getElementById('result').textContent = '';
         });
 
@@ -209,7 +292,7 @@
                 }
             }
             document.getElementById('target-input').value = '';
-            document.getElementById('solution').textContent = '';
+            document.getElementById('solutions').innerHTML = '';
             document.getElementById('result').textContent = '';
         });
 
@@ -220,20 +303,23 @@
             if (numbers === null || isNaN(target)) {
                 document.getElementById('result').textContent = 'Por favor, ingrese números y un objetivo válidos.';
                 document.getElementById('result').style.color = '#dc3545';
-                document.getElementById('solution').textContent = '';
+                document.getElementById('solutions').innerHTML = '';
                 return;
             }
 
-            const { bestValue, bestExpression, bestDiff, bestNumCount } = findBestSolution(numbers, target);
-
-            document.getElementById('solution').textContent =
-                `Solución: ${bestExpression} = ${bestValue}`;
-            if (bestDiff === 0) {
-                document.getElementById('result').textContent = '¡Se ha alcanzado la cifra exacta!';
-                document.getElementById('result').style.color = '#28a745';
-            } else {
-                document.getElementById('result').textContent =
-                    `Se ha quedado a ${bestDiff} del objetivo.`;
+            const top5Solutions = findTop5Solutions(numbers, target);
+            displayTop5Solutions(top5Solutions, target);
+            
+            // Mostrar resumen general
+            if (top5Solutions.length > 0) {
+                const bestSolution = top5Solutions[0];
+                if (bestSolution.diff === 0) {
+                    document.getElementById('result').textContent = `¡Encontradas ${top5Solutions.length} soluciones! La mejor alcanza la cifra exacta.`;
+                    document.getElementById('result').style.color = '#28a745';
+                } else {
+                    document.getElementById('result').textContent = `Encontradas ${top5Solutions.length} mejores soluciones. La más cercana se queda a ${bestSolution.diff} del objetivo.`;
+                    document.getElementById('result').style.color = '#555';
+                }
             }
         });
     </script>
